@@ -1,0 +1,46 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build
+        env:
+          # Public-safe values (anon key is exposed in the browser anyway).
+          VITE_SUPABASE_URL: https://kemoqakrtsfzgflxahsa.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbW9xYWtydHNmemdmbHhhaHNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzM5NTYsImV4cCI6MjEwMTkwOTk1Nn0.uOI6ZkPz4nzhDx2_jiPGBivXOObb0AWVGb8KVf3hkwA
+          VITE_API_URL: https://ai-chat-api.lachlanhenryhumphreys.workers.dev
+          VITE_BASE_URL: /ai/
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
