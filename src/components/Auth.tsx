@@ -2,6 +2,8 @@ import { FormEvent, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Provider } from '@supabase/supabase-js'
 
+const REDIRECT_URL = `${window.location.origin}${import.meta.env.BASE_URL}`
+
 const SOCIAL_PROVIDERS: { provider: Provider; label: string }[] = [
   { provider: 'google', label: 'Google' },
 ]
@@ -22,7 +24,7 @@ export function Auth() {
     const opts = {
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: REDIRECT_URL },
     }
 
     const { error } =
@@ -43,7 +45,7 @@ export function Auth() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: REDIRECT_URL },
     })
     if (error) setError(error.message)
     else setSent(true)
@@ -54,7 +56,7 @@ export function Auth() {
     setError(null)
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: REDIRECT_URL },
     })
     if (error) setError(error.message)
   }
