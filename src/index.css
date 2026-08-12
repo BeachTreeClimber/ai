@@ -52,6 +52,33 @@ input {
   font-size: 1.35rem;
 }
 
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.card .logo {
+  margin-inline: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 700;
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.brand .logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  margin: 0;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -126,6 +153,18 @@ input {
 
 .social-btn:hover {
   border-color: #8ab4ff;
+}
+
+.social-btn.google {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.disclaimer {
+  color: #8b93a1;
+  font-size: 0.85rem;
+  text-align: center;
+  margin-bottom: 0;
 }
 
 .divider {

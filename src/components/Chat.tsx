@@ -13,6 +13,7 @@ interface ChatResponse {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/chat'
+const LOGO_URL = `${import.meta.env.BASE_URL}logo.svg`
 
 export function Chat({ email, onSignOut }: ChatProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -121,6 +122,10 @@ export function Chat({ email, onSignOut }: ChatProps) {
   return (
     <div className="layout">
       <aside className="sidebar">
+        <div className="brand">
+          <img src={LOGO_URL} alt="" className="logo" />
+          <span>AI Chat Assistant</span>
+        </div>
         <button className="new-chat" onClick={startNewChat}>
           + New chat
         </button>
