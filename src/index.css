@@ -167,6 +167,24 @@ input {
   margin-bottom: 0;
 }
 
+.terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+  cursor: pointer;
+}
+
+.terms input {
+  margin-top: 0.15rem;
+  accent-color: #4f8cff;
+}
+
+.terms a {
+  color: #8ab4ff;
+}
+
 .divider {
   display: flex;
   align-items: center;
