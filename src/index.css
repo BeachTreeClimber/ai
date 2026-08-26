@@ -185,6 +185,18 @@ input {
   color: #8ab4ff;
 }
 
+.guest-link {
+  display: block;
+  text-align: center;
+  margin-top: 0.75rem;
+  color: #8b93a1;
+  font-size: 0.9rem;
+}
+
+.guest-link:hover {
+  color: #8ab4ff;
+}
+
 .divider {
   display: flex;
   align-items: center;
