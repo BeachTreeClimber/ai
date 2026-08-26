@@ -22,7 +22,7 @@ export function Auth() {
   }
 
   return (
-    <div className="card">
+<div className="card">
       <img src={LOGO_URL} alt="" className="logo" />
       <h1>Welcome</h1>
       {error && <p className="error">{error}</p>}
@@ -39,16 +39,18 @@ export function Auth() {
             target="_blank"
             rel="noreferrer"
           >
-            Terms &amp; Conditions
+            Terms & Conditions
           </a>
         </span>
       </label>
-      <button
+      <br />
+      <a
+        href="https://github.com/BeachTreeClimber/ai"
         className="social-btn google"
-        onClick={signInWithGoogle}
-        disabled={loading || !accepted}
+        style={{ marginTop: "0.5rem", color: "#fff" }}
+        target="_blank"
       >
-        {loading ? 'Please wait…' : 'Continue with Google'}
+        Continue without signing in
       </button>
       <p className="disclaimer">Sign in to chat with your AI assistant</p>
     </div>
