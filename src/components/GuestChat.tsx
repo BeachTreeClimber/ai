@@ -9,7 +9,7 @@ interface GuestMessage {
 const WORKER_ORIGIN = 'https://ai-chat-api.lachlanhenryhumphreys.workers.dev'
 function guestApiUrl(): string {
   const base = import.meta.env.VITE_API_URL as string | undefined
-  if (base) return base.replace(/\/chat\/?$/, '/guest')
+  if (base) return `${base.replace(/\/$/, '').replace(/\/chat$/, '')}/guest`
   // Cloudflare Pages — guest is at /api/guest
   if (window.location.hostname.endsWith('pages.dev')) return '/api/guest'
   // GitHub Pages — hit the Worker
