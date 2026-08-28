@@ -187,14 +187,28 @@ input {
 
 .guest-link {
   display: block;
+  width: 100%;
   text-align: center;
   margin-top: 0.75rem;
   color: #8b93a1;
   font-size: 0.9rem;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 .guest-link:hover {
   color: #8ab4ff;
+}
+
+.guest-note {
+  color: #8b93a1;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+  padding: 0.35rem 0.5rem;
+  background: #1d2129;
+  border-radius: 6px;
+  text-align: center;
 }
 
 .divider {

@@ -52,6 +52,37 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
+async function handleGuest(request: Request, env: Env): Promise<Response> {
+  const {
+    message,
+    history,
+  }: { message: string; history?: { role: string; content: string }[] } =
+    await request.json().catch(() => ({}))
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return json({ error: 'Message is required' }, 400)
+  }
+
+  const chatMessages = [
+    { role: 'system', content: 'You are a helpful assistant. Answer concisely and accurately.' },
+    ...((history ?? []).slice(-20)),
+    { role: 'user', content: message },
+  ]
+
+  let reply: string
+  try {
+    const result = await env.AI.run(MODEL, { messages: chatMessages })
+    reply = extractReply(result)
+  } catch (err) {
+    console.error('Workers AI error', err)
+    return json(
+      { error: 'The model call failed. Check that the AI binding and model ID are valid.' },
+      502,
+    )
+  }
+
+  return json({ reply })
+}
+
 async function handleChat(request: Request, env: Env): Promise<Response> {
   const authHeader = request.headers.get('Authorization')
 
@@ -160,7 +191,11 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
-    if (request.method === 'POST') return handleChat(request, env)
+    if (request.method === 'POST') {
+      const url = new URL(request.url)
+      if (url.pathname === '/guest') return handleGuest(request, env)
+      return handleChat(request, env)
+    }
     if (request.method === 'GET') return json({ ok: true, service: 'ai-chat-api' })
     return json({ error: 'Method not allowed' }, 405)
   },

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 const REDIRECT_URL = `${window.location.origin}${import.meta.env.BASE_URL}`
 const LOGO_URL = `${import.meta.env.BASE_URL}logo.svg`
 
-export function Auth() {
+export function Auth({ onGuest }: { onGuest: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [accepted, setAccepted] = useState(false)
@@ -50,14 +50,9 @@ export function Auth() {
       >
         {loading ? 'Please wait…' : 'Continue with Google'}
       </button>
-      <a
-        className="guest-link"
-        href="https://github.com/BeachTreeClimber/ai"
-        target="_blank"
-        rel="noreferrer"
-      >
+      <button className="guest-link" onClick={onGuest} type="button">
         Try without signing in
-      </a>
+      </button>
       <p className="disclaimer">Sign in to chat with your AI assistant</p>
     </div>
   )

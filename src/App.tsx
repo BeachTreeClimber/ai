@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { Auth } from './components/Auth'
 import { Chat } from './components/Chat'
+import { GuestChat } from './components/GuestChat'
 import type { Session } from '@supabase/supabase-js'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [guest, setGuest] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -23,11 +25,13 @@ export default function App() {
 
   if (loading) return <div className="loading">Loading…</div>
 
+  if (guest) return <GuestChat onBack={() => setGuest(false)} />
+
   return session ? (
     <Chat email={session.user.email ?? ''} onSignOut={() => supabase.auth.signOut()} />
   ) : (
     <div className="center">
-      <Auth />
+      <Auth onGuest={() => setGuest(true)} />
     </div>
   )
 }
