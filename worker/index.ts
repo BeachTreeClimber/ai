@@ -22,14 +22,27 @@ const MODEL = '@cf/openai/gpt-oss-120b'
 
 interface AiResult {
   response?: string
-  choices?: { message?: { content?: string } }[]
+  choices?: {
+    finish_reason?: string
+    message?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null }
+  }[]
 }
 
 function extractReply(result: unknown): string {
   const r = result as AiResult
   if (typeof r.response === 'string' && r.response) return r.response
-  const content = r.choices?.[0]?.message?.content
+  const choice = r.choices?.[0]
+  const content = choice?.message?.content
   if (typeof content === 'string' && content) return content
+  // gpt-oss-120b is a reasoning model — when max_tokens is too low it
+  // truncates with finish_reason "length" and content=null but reasoning
+  // still contains text. Fall back to reasoning text instead of dumping JSON.
+  const reasoning = choice?.message?.reasoning_content ?? choice?.message?.reasoning
+  if (typeof reasoning === 'string' && reasoning.trim()) {
+    return reasoning.trim() + '\n\n_(response was truncated — try a shorter prompt)_'
+  }
+  const finish = choice?.finish_reason
+  if (finish === 'length') return 'Sorry — the response was cut off. Please try a shorter prompt.'
   return JSON.stringify(result)
 }
 
@@ -70,7 +83,10 @@ async function handleGuest(request: Request, env: Env): Promise<Response> {
 
   let reply: string
   try {
-    const result = await env.AI.run(MODEL, { messages: chatMessages })
+    const result = await env.AI.run(MODEL, {
+      messages: chatMessages,
+      max_tokens: 2048,
+    })
     reply = extractReply(result)
   } catch (err) {
     console.error('Workers AI error', err)
@@ -146,7 +162,10 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   // Run the model via Cloudflare Workers AI.
   let reply: string
   try {
-    const result = await env.AI.run(MODEL, { messages: chatMessages })
+    const result = await env.AI.run(MODEL, {
+      messages: chatMessages,
+      max_tokens: 2048,
+    })
     reply = extractReply(result)
   } catch (err) {
     console.error('Workers AI error', err)
