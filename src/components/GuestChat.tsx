@@ -1,4 +1,5 @@
 import { FormEvent, useRef, useState } from 'react'
+import { MessageContent } from './MessageContent'
 
 interface GuestMessage {
   id: number
@@ -55,7 +56,19 @@ export function GuestChat({ onBack }: { onBack: () => void }) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.error ?? `Request failed (${res.status})`)
       }
-      const { reply } = (await res.json()) as { reply: string }
+      const ct = res.headers.get('Content-Type') ?? ''
+      let reply: string
+      if (ct.startsWith('image/')) {
+        const blob = await res.blob()
+        const b64 = await new Promise<string>((resolve) => {
+          const r = new FileReader()
+          r.onloadend = () => resolve((r.result as string).split(',')[1] ?? '')
+          r.readAsDataURL(blob)
+        })
+        reply = `![generated image](data:image/png;base64,${b64})`
+      } else {
+        ;({ reply } = (await res.json()) as { reply: string })
+      }
       setMessages((prev) => [
         ...prev,
         { id: Date.now() + 1, role: 'assistant', content: reply } as GuestMessage,
@@ -90,7 +103,9 @@ export function GuestChat({ onBack }: { onBack: () => void }) {
           )}
           {messages.map((m) => (
             <div key={m.id} className={`message ${m.role}`}>
-              <div className="bubble">{m.content}</div>
+              <div className="bubble">
+                <MessageContent text={m.content} />
+              </div>
             </div>
           ))}
           {loading && (
@@ -109,7 +124,7 @@ export function GuestChat({ onBack }: { onBack: () => void }) {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message the assistant…"
+            placeholder="Ask for code or type /image a prompt…"
             disabled={loading}
           />
           <button type="submit" disabled={loading || !input.trim()}>

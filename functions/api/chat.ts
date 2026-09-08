@@ -4,6 +4,7 @@ import type { Conversation, Message } from '../src/types'
 // Model run in your own Cloudflare account (Workers AI).
 // Swap for any model at https://developers.cloudflare.com/workers-ai/models/
 const MODEL = '@cf/openai/gpt-oss-120b'
+const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell'
 
 interface AiResult {
   response?: string
@@ -38,6 +39,40 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+const IMAGE_PREFIX = '/image '
+
+function isImagePrompt(message: string): string | null {
+  if (message.toLowerCase().startsWith(IMAGE_PREFIX)) return message.slice(IMAGE_PREFIX.length).trim()
+  return null
+}
+
+async function handleImage(
+  prompt: string,
+  env: Env,
+): Promise<{ dataUrl: string } | { error: string }> {
+  if (!prompt) return { error: 'Image prompt is required. Use: /image a cat in space' }
+  try {
+    const result = await env.AI.run(IMAGE_MODEL, { prompt })
+    let buf: Uint8Array
+    if (result instanceof ReadableStream) {
+      const ab = await new Response(result).arrayBuffer()
+      buf = new Uint8Array(ab)
+    } else if (result instanceof Uint8Array) {
+      buf = result
+    } else {
+      const asObj = result as { image?: string }
+      if (asObj.image) buf = Uint8Array.from(atob(asObj.image), (c) => c.charCodeAt(0))
+      else return { error: 'Unexpected image response' }
+    }
+    let bin = ''
+    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+    return { dataUrl: `data:image/png;base64,${btoa(bin)}` }
+  } catch (err) {
+    console.error('Image error', err)
+    return { error: 'Image generation failed' }
+  }
 }
 
 function json(body: unknown, status = 200): Response {
@@ -77,6 +112,49 @@ export const onRequestPost = async (context: {
     return json({ error: 'Message is required' }, 400)
   }
 
+  // Image generation — trigger with "/image a cat in space"
+  const imagePrompt = isImagePrompt(message)
+  if (imagePrompt !== null) {
+    const img = await handleImage(imagePrompt, env)
+    if ('error' in img) return json({ error: img.error }, 400)
+    let conversationIdResolved = conversationId
+    if (!conversationIdResolved) {
+      const title = `Image: ${imagePrompt.slice(0, 40)}`
+      const { data, error } = await supabase
+        .from('conversations')
+        .insert({ user_id: userId, title })
+        .select()
+        .single()
+      if (error) return json({ error: error.message }, 500)
+      conversationIdResolved = (data as Conversation).id
+    }
+    await supabase.from('messages').insert({
+      conversation_id: conversationIdResolved,
+      role: 'user',
+      content: message,
+    })
+    await supabase.from('messages').insert({
+      conversation_id: conversationIdResolved,
+      role: 'assistant',
+      content: `![generated image](${img.dataUrl})`,
+    })
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationIdResolved)
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationIdResolved)
+      .order('created_at', { ascending: true })
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationIdResolved)
+      .single()
+    return json({ conversation: conversation as Conversation, messages: messages as Message[] })
+  }
+
   // Reuse an existing conversation, or create a new one.
   let conversationIdResolved = conversationId
   if (!conversationIdResolved) {
@@ -108,7 +186,7 @@ export const onRequestPost = async (context: {
   if (historyError) return json({ error: historyError.message }, 500)
 
   const systemPrompt =
-    'You are a helpful assistant. Answer concisely and accurately.'
+    'You are a helpful assistant and coding expert. Answer concisely and accurately. For code, provide clean, well-commented examples with syntax highlighting in mind. Use markdown code fences.'
   const chatMessages = [
     { role: 'system', content: systemPrompt },
     ...(history ?? []),

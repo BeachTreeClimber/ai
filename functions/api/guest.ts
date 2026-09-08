@@ -3,6 +3,7 @@ interface Env {
 }
 
 const MODEL = '@cf/openai/gpt-oss-120b'
+const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell'
 
 interface AiResult {
   response?: string
@@ -42,6 +43,34 @@ function json(body: unknown, status = 200): Response {
 
 export const onRequestOptions = (): Response => new Response(null, { headers: corsHeaders })
 
+const IMAGE_PREFIX = '/image '
+
+function isImagePrompt(message: string): string | null {
+  if (message.toLowerCase().startsWith(IMAGE_PREFIX)) return message.slice(IMAGE_PREFIX.length).trim()
+  return null
+}
+
+async function handleImage(prompt: string, env: Env): Promise<Response> {
+  if (!prompt) return json({ error: 'Image prompt is required. Use: /image a cat in space' }, 400)
+  try {
+    const result = await env.AI.run(IMAGE_MODEL, { prompt })
+    if (result instanceof ReadableStream) {
+      return new Response(result, { headers: { 'Content-Type': 'image/png', ...corsHeaders } })
+    }
+    if (result instanceof Uint8Array)
+      return new Response(result as BodyInit, { headers: { 'Content-Type': 'image/png', ...corsHeaders } })
+    const asObj = result as { image?: string }
+    if (asObj.image) {
+      const bin = Uint8Array.from(atob(asObj.image), (c) => c.charCodeAt(0))
+      return new Response(bin as BodyInit, { headers: { 'Content-Type': 'image/png', ...corsHeaders } })
+    }
+    return json({ error: 'Unexpected image response' }, 500)
+  } catch (err) {
+    console.error('Image error', err)
+    return json({ error: 'Image generation failed' }, 502)
+  }
+}
+
 export const onRequestPost = async (context: {
   request: Request
   env: Env
@@ -56,8 +85,17 @@ export const onRequestPost = async (context: {
     return json({ error: 'Message is required' }, 400)
   }
 
+  const imagePrompt = isImagePrompt(message)
+  if (imagePrompt !== null) {
+    return handleImage(imagePrompt, env)
+  }
+
   const chatMessages = [
-    { role: 'system', content: 'You are a helpful assistant. Answer concisely and accurately.' },
+    {
+      role: 'system',
+      content:
+        'You are a helpful assistant and coding expert. Answer concisely and accurately. For code, provide clean, well-commented examples with syntax highlighting in mind. Use markdown code fences.',
+    },
     ...((history ?? []).slice(-20)),
     { role: 'user', content: message },
   ]

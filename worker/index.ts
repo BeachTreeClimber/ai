@@ -19,6 +19,7 @@ interface Message {
 // Model run in your own Cloudflare account (Workers AI).
 // Swap for any model at https://developers.cloudflare.com/workers-ai/models/
 const MODEL = '@cf/openai/gpt-oss-120b'
+const IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell'
 
 interface AiResult {
   response?: string
@@ -65,6 +66,39 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
+const IMAGE_PREFIX = '/image '
+
+function isImagePrompt(message: string): string | null {
+  if (message.toLowerCase().startsWith(IMAGE_PREFIX)) return message.slice(IMAGE_PREFIX.length).trim()
+  return null
+}
+
+async function handleImage(prompt: string, env: Env): Promise<Response> {
+  if (!prompt) return json({ error: 'Image prompt is required. Use: /image a cat in space' }, 400)
+  try {
+    const result = await env.AI.run(IMAGE_MODEL, { prompt })
+    // Flux returns a ReadableStream of PNG bytes on Workers AI
+    if (result instanceof ReadableStream) {
+      return new Response(result, {
+        headers: { 'Content-Type': 'image/png', ...corsHeaders },
+      })
+    }
+    // Some runtimes return Uint8Array / ArrayBuffer
+    if (result instanceof Uint8Array)
+      return new Response(result as BodyInit, { headers: { 'Content-Type': 'image/png', ...corsHeaders } })
+    // Fallback: base64 in object
+    const asObj = result as { image?: string }
+    if (asObj.image) {
+      const bin = Uint8Array.from(atob(asObj.image), (c) => c.charCodeAt(0))
+      return new Response(bin as BodyInit, { headers: { 'Content-Type': 'image/png', ...corsHeaders } })
+    }
+    return json({ error: 'Unexpected image response' }, 500)
+  } catch (err) {
+    console.error('Image error', err)
+    return json({ error: 'Image generation failed' }, 502)
+  }
+}
+
 async function handleGuest(request: Request, env: Env): Promise<Response> {
   const {
     message,
@@ -75,8 +109,17 @@ async function handleGuest(request: Request, env: Env): Promise<Response> {
     return json({ error: 'Message is required' }, 400)
   }
 
+  const imagePrompt = isImagePrompt(message)
+  if (imagePrompt !== null) {
+    return handleImage(imagePrompt, env)
+  }
+
   const chatMessages = [
-    { role: 'system', content: 'You are a helpful assistant. Answer concisely and accurately.' },
+    {
+      role: 'system',
+      content:
+        'You are a helpful assistant and coding expert. Answer concisely and accurately. For code, provide clean, well-commented examples with syntax highlighting in mind. Use markdown code fences.',
+    },
     ...((history ?? []).slice(-20)),
     { role: 'user', content: message },
   ]
@@ -123,6 +166,58 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     return json({ error: 'Message is required' }, 400)
   }
 
+  const imagePrompt = isImagePrompt(message)
+  if (imagePrompt !== null) {
+    // Images are ephemeral — don't save to chat history, just generate and return
+    const imgRes = await handleImage(imagePrompt, env)
+    if (!imgRes.ok) return imgRes
+    // Return the PNG as base64 data URL inside a normal chat reply so the
+    // frontend can display it inline and it gets saved as a message.
+    const buf = new Uint8Array(await imgRes.arrayBuffer())
+    let bin = ''
+    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+    const b64 = btoa(bin)
+    const dataUrl = `data:image/png;base64,${b64}`
+
+    // Persist both sides so the image appears in history
+    let conversationIdResolved = conversationId
+    if (!conversationIdResolved) {
+      const title = `Image: ${imagePrompt.slice(0, 40)}`
+      const { data, error } = await supabase
+        .from('conversations')
+        .insert({ user_id: userId, title })
+        .select()
+        .single()
+      if (error) return json({ error: error.message }, 500)
+      conversationIdResolved = (data as Conversation).id
+    }
+    await supabase.from('messages').insert({
+      conversation_id: conversationIdResolved,
+      role: 'user',
+      content: message,
+    })
+    await supabase.from('messages').insert({
+      conversation_id: conversationIdResolved,
+      role: 'assistant',
+      content: `![generated image](${dataUrl})`,
+    })
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationIdResolved)
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationIdResolved)
+      .order('created_at', { ascending: true })
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationIdResolved)
+      .single()
+    return json({ conversation: conversation as Conversation, messages: messages as Message[] })
+  }
+
   // Reuse an existing conversation, or create a new one.
   let conversationIdResolved = conversationId
   if (!conversationIdResolved) {
@@ -153,7 +248,8 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
     .limit(50)
   if (historyError) return json({ error: historyError.message }, 500)
 
-  const systemPrompt = 'You are a helpful assistant. Answer concisely and accurately.'
+  const systemPrompt =
+    'You are a helpful assistant and coding expert. Answer concisely and accurately. For code, provide clean, well-commented examples with syntax highlighting in mind. Use markdown code fences.'
   const chatMessages = [
     { role: 'system', content: systemPrompt },
     ...(history ?? []),

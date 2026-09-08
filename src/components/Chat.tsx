@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { MessageContent } from './MessageContent'
 import { supabase } from '../lib/supabase'
 import type { Conversation, Message } from '../types'
 
@@ -166,7 +167,9 @@ export function Chat({ email, onSignOut }: ChatProps) {
           )}
           {messages.map((m) => (
             <div key={m.id} className={`message ${m.role}`}>
-              <div className="bubble">{m.content}</div>
+              <div className="bubble">
+                <MessageContent text={m.content} />
+              </div>
             </div>
           ))}
           {loading && (
@@ -187,7 +190,7 @@ export function Chat({ email, onSignOut }: ChatProps) {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message the assistant…"
+            placeholder="Ask for code or type /image a prompt…"
             disabled={loading}
           />
           <button type="submit" disabled={loading || !input.trim()}>
