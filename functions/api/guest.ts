@@ -90,13 +90,17 @@ export const onRequestPost = async (context: {
     return handleImage(imagePrompt, env)
   }
 
+  const cleanHistory = (history ?? []).slice(-20).map((m) => ({
+    role: m.role,
+    content: m.content.startsWith('![generated image]') ? '[generated image]' : m.content,
+  }))
   const chatMessages = [
     {
       role: 'system',
       content:
         'You are a helpful assistant and coding expert. Answer concisely and accurately. For code, provide clean, well-commented examples with syntax highlighting in mind. Use markdown code fences.',
     },
-    ...((history ?? []).slice(-20)),
+    ...cleanHistory,
     { role: 'user', content: message },
   ]
 

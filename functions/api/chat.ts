@@ -185,11 +185,15 @@ export const onRequestPost = async (context: {
     .limit(50)
   if (historyError) return json({ error: historyError.message }, 500)
 
+  const cleanHistory = ((history as { role: string; content: string }[]) ?? []).map((m) => ({
+    role: m.role,
+    content: m.content.startsWith('![generated image]') ? '[generated image]' : m.content,
+  }))
   const systemPrompt =
     'You are a helpful assistant and coding expert. Answer concisely and accurately. For code, provide clean, well-commented examples with syntax highlighting in mind. Use markdown code fences.'
   const chatMessages = [
     { role: 'system', content: systemPrompt },
-    ...(history ?? []),
+    ...cleanHistory,
   ]
 
   // Run the model via Cloudflare Workers AI.
